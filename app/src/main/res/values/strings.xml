@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">FinTrack</string>
+    <string name="notification_listener_label">FinTrack Transaction Alerts</string>
+</resources>

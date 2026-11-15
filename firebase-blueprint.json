@@ -1,0 +1,232 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Authenticated FinTrack user profile and preferences.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Firebase Auth UID" },
+        "displayName": { "type": "string" },
+        "email": { "type": "string" },
+        "currency": { "type": "string" },
+        "timezone": { "type": "string" },
+        "pinEnabled": { "type": "boolean" },
+        "biometricEnabled": { "type": "boolean" },
+        "monthlyBudgetLimit": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Must be FieldValue.serverTimestamp()" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Must be FieldValue.serverTimestamp()" }
+      },
+      "required": ["userId", "displayName", "currency", "timezone", "createdAt", "updatedAt"]
+    },
+    "FinancialAccount": {
+      "title": "FinancialAccount",
+      "description": "Connected bank account, card, UPI handle, or manual account.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "accountName": { "type": "string" },
+        "institutionName": { "type": "string" },
+        "accountType": { "type": "string", "enum": ["SAVINGS", "CURRENT", "CREDIT_CARD", "DEBIT_CARD", "UPI_WALLET", "CASH"] },
+        "maskedIdentifier": { "type": "string" },
+        "upiId": { "type": "string" },
+        "sourceType": { "type": "string" },
+        "syncStatus": { "type": "string" },
+        "supportsRealBalance": { "type": "boolean" },
+        "currentBalance": { "type": "number" },
+        "lastSyncedAtMillis": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "accountName", "institutionName", "accountType", "maskedIdentifier", "sourceType", "syncStatus", "supportsRealBalance", "createdAt", "updatedAt"]
+    },
+    "TransactionRecord": {
+      "title": "TransactionRecord",
+      "description": "Normalized real-world financial transaction traceable to an authorized source or manual entry.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "accountId": { "type": "string" },
+        "transactionTimestampMillis": { "type": "integer" },
+        "dateIst": { "type": "string" },
+        "timeIst": { "type": "string" },
+        "amount": { "type": "number" },
+        "type": { "type": "string", "enum": ["CREDIT", "DEBIT"] },
+        "senderName": { "type": "string" },
+        "receiverName": { "type": "string" },
+        "counterpartyName": { "type": "string" },
+        "recipientMobile": { "type": "string" },
+        "upiId": { "type": "string" },
+        "bankAccountName": { "type": "string" },
+        "maskedAccountIdentifier": { "type": "string" },
+        "paymentApp": { "type": "string" },
+        "paymentMethod": { "type": "string" },
+        "referenceNumber": { "type": "string" },
+        "utrOrUpiRef": { "type": "string" },
+        "status": { "type": "string", "enum": ["SUCCESS", "PENDING", "FAILED", "RECONCILED"] },
+        "category": { "type": "string" },
+        "description": { "type": "string" },
+        "source": { "type": "string" },
+        "notes": { "type": "string" },
+        "dedupFingerprint": { "type": "string" },
+        "isDuplicate": { "type": "boolean" },
+        "rawSourceHash": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "transactionTimestampMillis", "dateIst", "timeIst", "amount", "type", "status", "category", "source", "dedupFingerprint", "createdAt", "updatedAt"]
+    },
+    "ContactParty": {
+      "title": "ContactParty",
+      "description": "Saved counterparty metadata for People & Contacts ledger.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "displayName": { "type": "string" },
+        "mobileNumber": { "type": "string" },
+        "upiId": { "type": "string" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "displayName", "createdAt", "updatedAt"]
+    },
+    "ExpenseCategory": {
+      "title": "ExpenseCategory",
+      "description": "Transaction expense or income category.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "iconKey": { "type": "string" },
+        "colorHex": { "type": "string" },
+        "isCustom": { "type": "boolean" },
+        "isIncomeCategory": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "name", "iconKey", "colorHex", "isCustom", "isIncomeCategory", "createdAt", "updatedAt"]
+    },
+    "BudgetGoal": {
+      "title": "BudgetGoal",
+      "description": "Budget limit or savings goal configured by the user.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "scope": { "type": "string" },
+        "category": { "type": "string" },
+        "limitAmount": { "type": "number" },
+        "savedOrTargetAmount": { "type": "number" },
+        "monthKey": { "type": "string" },
+        "alertThresholdPercent": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "title", "scope", "limitAmount", "monthKey", "alertThresholdPercent", "createdAt", "updatedAt"]
+    },
+    "FinanceAlert": {
+      "title": "FinanceAlert",
+      "description": "Financial alert or system notification.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "alertType": { "type": "string" },
+        "relatedTransactionId": { "type": "string" },
+        "isRead": { "type": "boolean" },
+        "timestampMillis": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "title", "message", "alertType", "isRead", "timestampMillis", "createdAt"]
+    },
+    "SyncAuditLog": {
+      "title": "SyncAuditLog",
+      "description": "Immutable synchronization and security operation audit log.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "source": { "type": "string" },
+        "status": { "type": "string" },
+        "recordsProcessed": { "type": "integer" },
+        "duplicatesSkipped": { "type": "integer" },
+        "message": { "type": "string" },
+        "timestampMillis": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "source", "status", "recordsProcessed", "duplicatesSkipped", "timestampMillis", "createdAt"]
+    },
+    "ConsentRecord": {
+      "title": "ConsentRecord",
+      "description": "Explicit user consent record for financial data sources and permissions.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "scope": { "type": "string" },
+        "granted": { "type": "boolean" },
+        "purpose": { "type": "string" },
+        "updatedAtMillis": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "scope", "granted", "purpose", "updatedAtMillis", "createdAt", "updatedAt"]
+    },
+    "TransactionAuditEntry": {
+      "title": "TransactionAuditEntry",
+      "description": "Immutable audit trail recording user edits while preserving original transaction state.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "transactionId": { "type": "string" },
+        "fieldChanged": { "type": "string" },
+        "previousValue": { "type": "string" },
+        "newValue": { "type": "string" },
+        "changedAtMillis": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "transactionId", "fieldChanged", "previousValue", "newValue", "changedAtMillis", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "User profile and global security/currency preferences."
+    },
+    "/users/{userId}/accounts/{accountId}": {
+      "schema": { "$ref": "#/entities/FinancialAccount" },
+      "description": "User's connected financial accounts, cards, and UPI handles."
+    },
+    "/users/{userId}/transactions/{transactionId}": {
+      "schema": { "$ref": "#/entities/TransactionRecord" },
+      "description": "User's real-world financial transaction records."
+    },
+    "/users/{userId}/contacts/{contactId}": {
+      "schema": { "$ref": "#/entities/ContactParty" },
+      "description": "Saved transaction counterparties and people metadata."
+    },
+    "/users/{userId}/categories/{categoryId}": {
+      "schema": { "$ref": "#/entities/ExpenseCategory" },
+      "description": "Default and custom expense/income categories."
+    },
+    "/users/{userId}/budgets/{budgetId}": {
+      "schema": { "$ref": "#/entities/BudgetGoal" },
+      "description": "User budgets, spending limits, and savings goals."
+    },
+    "/users/{userId}/notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/FinanceAlert" },
+      "description": "User financial alerts and notification history."
+    },
+    "/users/{userId}/sync_logs/{logId}": {
+      "schema": { "$ref": "#/entities/SyncAuditLog" },
+      "description": "Synchronization and sensitive operation audit logs."
+    },
+    "/users/{userId}/consents/{consentId}": {
+      "schema": { "$ref": "#/entities/ConsentRecord" },
+      "description": "Explicit user consent records for data collection."
+    },
+    "/users/{userId}/audit_logs/{auditId}": {
+      "schema": { "$ref": "#/entities/TransactionAuditEntry" },
+      "description": "Audit trail of edits to transaction category or notes."
+    }
+  }
+}

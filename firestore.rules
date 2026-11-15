@@ -1,0 +1,388 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net: Default-deny all reads and writes
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Core Primitives
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidTimestamp(ts) {
+      return ts is timestamp && ts <= request.time;
+    }
+
+    // 1. UserProfile Validation
+    function isValidUserProfile(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 100 &&
+             (!('email' in data) || (data.email is string && data.email.size() <= 120)) &&
+             data.currency is string && data.currency.size() >= 3 && data.currency.size() <= 10 &&
+             data.timezone is string && data.timezone.size() >= 3 && data.timezone.size() <= 40 &&
+             (!('pinEnabled' in data) || data.pinEnabled is bool) &&
+             (!('biometricEnabled' in data) || data.biometricEnabled is bool) &&
+             (!('monthlyBudgetLimit' in data) || (data.monthlyBudgetLimit is number && data.monthlyBudgetLimit >= 0));
+    }
+
+    // 2. FinancialAccount Validation
+    function isValidFinancialAccount(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.accountName is string && data.accountName.size() >= 1 && data.accountName.size() <= 80 &&
+             data.institutionName is string && data.institutionName.size() >= 1 && data.institutionName.size() <= 80 &&
+             data.accountType in ['SAVINGS', 'CURRENT', 'CREDIT_CARD', 'DEBIT_CARD', 'UPI_WALLET', 'CASH'] &&
+             data.maskedIdentifier is string && data.maskedIdentifier.size() >= 1 && data.maskedIdentifier.size() <= 40 &&
+             (!('upiId' in data) || (data.upiId is string && data.upiId.size() <= 100)) &&
+             data.sourceType is string && data.sourceType.size() >= 1 && data.sourceType.size() <= 40 &&
+             data.syncStatus is string && data.syncStatus.size() >= 1 && data.syncStatus.size() <= 40 &&
+             data.supportsRealBalance is bool &&
+             (!('currentBalance' in data) || data.currentBalance is number) &&
+             (!('lastSyncedAtMillis' in data) || data.lastSyncedAtMillis is int);
+    }
+
+    // 3. TransactionRecord Validation
+    function isValidTransactionRecord(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             (!('accountId' in data) || (data.accountId is string && data.accountId.size() <= 128)) &&
+             data.transactionTimestampMillis is int && data.transactionTimestampMillis > 0 &&
+             data.dateIst is string && data.dateIst.size() >= 8 && data.dateIst.size() <= 20 &&
+             data.timeIst is string && data.timeIst.size() >= 5 && data.timeIst.size() <= 20 &&
+             data.amount is number && data.amount >= 0 &&
+             data.type in ['CREDIT', 'DEBIT'] &&
+             (!('senderName' in data) || (data.senderName is string && data.senderName.size() <= 120)) &&
+             (!('receiverName' in data) || (data.receiverName is string && data.receiverName.size() <= 120)) &&
+             (!('counterpartyName' in data) || (data.counterpartyName is string && data.counterpartyName.size() <= 120)) &&
+             (!('recipientMobile' in data) || (data.recipientMobile is string && data.recipientMobile.size() <= 30)) &&
+             (!('upiId' in data) || (data.upiId is string && data.upiId.size() <= 100)) &&
+             (!('bankAccountName' in data) || (data.bankAccountName is string && data.bankAccountName.size() <= 80)) &&
+             (!('maskedAccountIdentifier' in data) || (data.maskedAccountIdentifier is string && data.maskedAccountIdentifier.size() <= 40)) &&
+             (!('paymentApp' in data) || (data.paymentApp is string && data.paymentApp.size() <= 40)) &&
+             (!('paymentMethod' in data) || (data.paymentMethod is string && data.paymentMethod.size() <= 40)) &&
+             (!('referenceNumber' in data) || (data.referenceNumber is string && data.referenceNumber.size() <= 80)) &&
+             (!('utrOrUpiRef' in data) || (data.utrOrUpiRef is string && data.utrOrUpiRef.size() <= 80)) &&
+             data.status in ['SUCCESS', 'PENDING', 'FAILED', 'RECONCILED'] &&
+             data.category is string && data.category.size() >= 1 && data.category.size() <= 60 &&
+             (!('description' in data) || (data.description is string && data.description.size() <= 300)) &&
+             data.source is string && data.source.size() >= 1 && data.source.size() <= 50 &&
+             (!('notes' in data) || (data.notes is string && data.notes.size() <= 500)) &&
+             data.dedupFingerprint is string && data.dedupFingerprint.size() >= 1 && data.dedupFingerprint.size() <= 128 &&
+             (!('isDuplicate' in data) || data.isDuplicate is bool) &&
+             (!('rawSourceHash' in data) || (data.rawSourceHash is string && data.rawSourceHash.size() <= 128));
+    }
+
+    // 4. ContactParty Validation
+    function isValidContactParty(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 100 &&
+             (!('mobileNumber' in data) || (data.mobileNumber is string && data.mobileNumber.size() <= 30)) &&
+             (!('upiId' in data) || (data.upiId is string && data.upiId.size() <= 100)) &&
+             (!('notes' in data) || (data.notes is string && data.notes.size() <= 300));
+    }
+
+    // 5. ExpenseCategory Validation
+    function isValidExpenseCategory(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.name is string && data.name.size() >= 1 && data.name.size() <= 60 &&
+             data.iconKey is string && data.iconKey.size() >= 1 && data.iconKey.size() <= 40 &&
+             data.colorHex is string && data.colorHex.size() >= 4 && data.colorHex.size() <= 16 &&
+             data.isCustom is bool &&
+             data.isIncomeCategory is bool;
+    }
+
+    // 6. BudgetGoal Validation
+    function isValidBudgetGoal(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 80 &&
+             data.scope is string && data.scope.size() >= 1 && data.scope.size() <= 40 &&
+             (!('category' in data) || (data.category is string && data.category.size() <= 60)) &&
+             data.limitAmount is number && data.limitAmount >= 0 &&
+             (!('savedOrTargetAmount' in data) || (data.savedOrTargetAmount is number && data.savedOrTargetAmount >= 0)) &&
+             data.monthKey is string && data.monthKey.size() >= 1 && data.monthKey.size() <= 20 &&
+             data.alertThresholdPercent is int && data.alertThresholdPercent >= 1 && data.alertThresholdPercent <= 100;
+    }
+
+    // 7. FinanceAlert Validation
+    function isValidFinanceAlert(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 120 &&
+             data.message is string && data.message.size() >= 1 && data.message.size() <= 400 &&
+             data.alertType is string && data.alertType.size() >= 1 && data.alertType.size() <= 40 &&
+             (!('relatedTransactionId' in data) || (data.relatedTransactionId is string && data.relatedTransactionId.size() <= 128)) &&
+             data.isRead is bool &&
+             data.timestampMillis is int;
+    }
+
+    // 8. SyncAuditLog Validation (append-only)
+    function isValidSyncAuditLog(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.source is string && data.source.size() >= 1 && data.source.size() <= 60 &&
+             data.status is string && data.status.size() >= 1 && data.status.size() <= 30 &&
+             data.recordsProcessed is int && data.recordsProcessed >= 0 &&
+             data.duplicatesSkipped is int && data.duplicatesSkipped >= 0 &&
+             (!('message' in data) || (data.message is string && data.message.size() <= 300)) &&
+             data.timestampMillis is int;
+    }
+
+    // 9. ConsentRecord Validation
+    function isValidConsentRecord(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.scope is string && data.scope.size() >= 1 && data.scope.size() <= 60 &&
+             data.granted is bool &&
+             data.purpose is string && data.purpose.size() >= 1 && data.purpose.size() <= 250 &&
+             data.updatedAtMillis is int;
+    }
+
+    // 10. TransactionAuditEntry Validation (append-only)
+    function isValidTransactionAuditEntry(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.transactionId is string && data.transactionId.size() >= 1 && data.transactionId.size() <= 128 &&
+             data.fieldChanged is string && data.fieldChanged.size() >= 1 && data.fieldChanged.size() <= 50 &&
+             data.previousValue is string && data.previousValue.size() <= 500 &&
+             data.newValue is string && data.newValue.size() <= 500 &&
+             data.changedAtMillis is int;
+    }
+
+    // User Root & Subcollections
+    match /users/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow list: if false; // Never allow listing all users
+
+      allow create: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       incoming().keys().hasAll(['userId', 'displayName', 'currency', 'timezone', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['userId', 'displayName', 'email', 'currency', 'timezone', 'pinEnabled', 'biometricEnabled', 'monthlyBudgetLimit', 'createdAt', 'updatedAt']) &&
+                       isValidTimestamp(incoming().createdAt) &&
+                       isValidTimestamp(incoming().updatedAt) &&
+                       isValidUserProfile(incoming(), userId);
+
+      allow update: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       isValidUserProfile(incoming(), userId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       isValidTimestamp(incoming().updatedAt) &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'email', 'currency', 'timezone', 'pinEnabled', 'biometricEnabled', 'monthlyBudgetLimit', 'updatedAt']);
+
+      allow delete: if isOwner(userId) && isValidId(userId);
+
+      // Financial Accounts
+      match /accounts/{accountId} {
+        allow get: if isOwner(userId) && isValidId(accountId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(accountId) &&
+                         incoming().keys().hasAll(['userId', 'accountName', 'institutionName', 'accountType', 'maskedIdentifier', 'sourceType', 'syncStatus', 'supportsRealBalance', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['userId', 'accountName', 'institutionName', 'accountType', 'maskedIdentifier', 'upiId', 'sourceType', 'syncStatus', 'supportsRealBalance', 'currentBalance', 'lastSyncedAtMillis', 'createdAt', 'updatedAt']) &&
+                         isValidTimestamp(incoming().createdAt) &&
+                         isValidTimestamp(incoming().updatedAt) &&
+                         isValidFinancialAccount(incoming(), userId);
+
+        allow update: if isOwner(userId) &&
+                         isValidId(accountId) &&
+                         isValidFinancialAccount(incoming(), userId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidTimestamp(incoming().updatedAt) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['accountName', 'institutionName', 'accountType', 'maskedIdentifier', 'upiId', 'sourceType', 'syncStatus', 'supportsRealBalance', 'currentBalance', 'lastSyncedAtMillis', 'updatedAt']);
+
+        allow delete: if isOwner(userId) && isValidId(accountId);
+      }
+
+      // Transactions
+      match /transactions/{transactionId} {
+        allow get: if isOwner(userId) && isValidId(transactionId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(transactionId) &&
+                         incoming().keys().hasAll(['userId', 'transactionTimestampMillis', 'dateIst', 'timeIst', 'amount', 'type', 'status', 'category', 'source', 'dedupFingerprint', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['userId', 'accountId', 'transactionTimestampMillis', 'dateIst', 'timeIst', 'amount', 'type', 'senderName', 'receiverName', 'counterpartyName', 'recipientMobile', 'upiId', 'bankAccountName', 'maskedAccountIdentifier', 'paymentApp', 'paymentMethod', 'referenceNumber', 'utrOrUpiRef', 'status', 'category', 'description', 'source', 'notes', 'dedupFingerprint', 'isDuplicate', 'rawSourceHash', 'createdAt', 'updatedAt']) &&
+                         isValidTimestamp(incoming().createdAt) &&
+                         isValidTimestamp(incoming().updatedAt) &&
+                         isValidTransactionRecord(incoming(), userId);
+
+        allow update: if isOwner(userId) &&
+                         isValidId(transactionId) &&
+                         isValidTransactionRecord(incoming(), userId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().source == existing().source &&
+                         incoming().dedupFingerprint == existing().dedupFingerprint &&
+                         isValidTimestamp(incoming().updatedAt) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['category', 'notes', 'status', 'counterpartyName', 'description', 'isDuplicate', 'updatedAt']);
+
+        allow delete: if isOwner(userId) && isValidId(transactionId);
+      }
+
+      // Contacts / People
+      match /contacts/{contactId} {
+        allow get: if isOwner(userId) && isValidId(contactId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(contactId) &&
+                         incoming().keys().hasAll(['userId', 'displayName', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['userId', 'displayName', 'mobileNumber', 'upiId', 'notes', 'createdAt', 'updatedAt']) &&
+                         isValidTimestamp(incoming().createdAt) &&
+                         isValidTimestamp(incoming().updatedAt) &&
+                         isValidContactParty(incoming(), userId);
+
+        allow update: if isOwner(userId) &&
+                         isValidId(contactId) &&
+                         isValidContactParty(incoming(), userId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidTimestamp(incoming().updatedAt) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'mobileNumber', 'upiId', 'notes', 'updatedAt']);
+
+        allow delete: if isOwner(userId) && isValidId(contactId);
+      }
+
+      // Expense Categories
+      match /categories/{categoryId} {
+        allow get: if isOwner(userId) && isValidId(categoryId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(categoryId) &&
+                         incoming().keys().hasAll(['userId', 'name', 'iconKey', 'colorHex', 'isCustom', 'isIncomeCategory', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['userId', 'name', 'iconKey', 'colorHex', 'isCustom', 'isIncomeCategory', 'createdAt', 'updatedAt']) &&
+                         isValidTimestamp(incoming().createdAt) &&
+                         isValidTimestamp(incoming().updatedAt) &&
+                         isValidExpenseCategory(incoming(), userId);
+
+        allow update: if isOwner(userId) &&
+                         isValidId(categoryId) &&
+                         isValidExpenseCategory(incoming(), userId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidTimestamp(incoming().updatedAt) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['name', 'iconKey', 'colorHex', 'isIncomeCategory', 'updatedAt']);
+
+        allow delete: if isOwner(userId) && isValidId(categoryId);
+      }
+
+      // Budgets & Savings Goals
+      match /budgets/{budgetId} {
+        allow get: if isOwner(userId) && isValidId(budgetId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(budgetId) &&
+                         incoming().keys().hasAll(['userId', 'title', 'scope', 'limitAmount', 'monthKey', 'alertThresholdPercent', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['userId', 'title', 'scope', 'category', 'limitAmount', 'savedOrTargetAmount', 'monthKey', 'alertThresholdPercent', 'createdAt', 'updatedAt']) &&
+                         isValidTimestamp(incoming().createdAt) &&
+                         isValidTimestamp(incoming().updatedAt) &&
+                         isValidBudgetGoal(incoming(), userId);
+
+        allow update: if isOwner(userId) &&
+                         isValidId(budgetId) &&
+                         isValidBudgetGoal(incoming(), userId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidTimestamp(incoming().updatedAt) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['title', 'scope', 'category', 'limitAmount', 'savedOrTargetAmount', 'monthKey', 'alertThresholdPercent', 'updatedAt']);
+
+        allow delete: if isOwner(userId) && isValidId(budgetId);
+      }
+
+      // Notifications & Alerts
+      match /notifications/{notificationId} {
+        allow get: if isOwner(userId) && isValidId(notificationId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(notificationId) &&
+                         incoming().keys().hasAll(['userId', 'title', 'message', 'alertType', 'isRead', 'timestampMillis', 'createdAt']) &&
+                         incoming().keys().hasOnly(['userId', 'title', 'message', 'alertType', 'relatedTransactionId', 'isRead', 'timestampMillis', 'createdAt']) &&
+                         isValidTimestamp(incoming().createdAt) &&
+                         isValidFinanceAlert(incoming(), userId);
+
+        allow update: if isOwner(userId) &&
+                         isValidId(notificationId) &&
+                         isValidFinanceAlert(incoming(), userId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['isRead']);
+
+        allow delete: if isOwner(userId) && isValidId(notificationId);
+      }
+
+      // Sync Logs (Append-only; deletable only on full account wipe)
+      match /sync_logs/{logId} {
+        allow get: if isOwner(userId) && isValidId(logId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(logId) &&
+                         incoming().keys().hasAll(['userId', 'source', 'status', 'recordsProcessed', 'duplicatesSkipped', 'timestampMillis', 'createdAt']) &&
+                         incoming().keys().hasOnly(['userId', 'source', 'status', 'recordsProcessed', 'duplicatesSkipped', 'message', 'timestampMillis', 'createdAt']) &&
+                         isValidTimestamp(incoming().createdAt) &&
+                         isValidSyncAuditLog(incoming(), userId);
+
+        allow update: if false;
+        allow delete: if isOwner(userId) && isValidId(logId);
+      }
+
+      // Consent Records
+      match /consents/{consentId} {
+        allow get: if isOwner(userId) && isValidId(consentId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(consentId) &&
+                         incoming().keys().hasAll(['userId', 'scope', 'granted', 'purpose', 'updatedAtMillis', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['userId', 'scope', 'granted', 'purpose', 'updatedAtMillis', 'createdAt', 'updatedAt']) &&
+                         isValidTimestamp(incoming().createdAt) &&
+                         isValidTimestamp(incoming().updatedAt) &&
+                         isValidConsentRecord(incoming(), userId);
+
+        allow update: if isOwner(userId) &&
+                         isValidId(consentId) &&
+                         isValidConsentRecord(incoming(), userId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().scope == existing().scope &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidTimestamp(incoming().updatedAt) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['granted', 'purpose', 'updatedAtMillis', 'updatedAt']);
+
+        allow delete: if isOwner(userId) && isValidId(consentId);
+      }
+
+      // Transaction Audit Trail (Append-only)
+      match /audit_logs/{auditId} {
+        allow get: if isOwner(userId) && isValidId(auditId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(auditId) &&
+                         incoming().keys().hasAll(['userId', 'transactionId', 'fieldChanged', 'previousValue', 'newValue', 'changedAtMillis', 'createdAt']) &&
+                         incoming().keys().hasOnly(['userId', 'transactionId', 'fieldChanged', 'previousValue', 'newValue', 'changedAtMillis', 'createdAt']) &&
+                         isValidTimestamp(incoming().createdAt) &&
+                         isValidTransactionAuditEntry(incoming(), userId);
+
+        allow update: if false;
+        allow delete: if isOwner(userId) && isValidId(auditId);
+      }
+    }
+  }
+}

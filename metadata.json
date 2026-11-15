@@ -1,0 +1,6 @@
+{
+  "name": "FinTrack",
+  "description": "Real-time personal finance and transaction management Android application with UPI, bank statement import, person-wise ledger, budgets, and analytics.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
